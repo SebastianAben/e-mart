@@ -62,7 +62,7 @@ export default function EMartApp() {
 
   const switchAuthTab = (tab: 'LOGIN' | 'SIGNUP') => {
     if (tab === 'SIGNUP' && authTab === 'LOGIN') {
-      const value = authForm.username;
+      const value = authForm.username || '';
       if (value.includes('@')) {
         setAuthForm(prev => ({ ...prev, email: value, username: '' }));
       } else {
@@ -235,12 +235,14 @@ export default function EMartApp() {
         <div className="w-full max-w-md bg-white border border-zinc-200 shadow-xl rounded-2xl overflow-hidden">
           <div className="flex border-b border-zinc-100">
             <button 
+              type="button"
               onClick={() => switchAuthTab('LOGIN')}
               className={`flex-1 py-4 font-semibold transition-all ${authTab === 'LOGIN' ? 'text-zinc-900' : 'text-zinc-400 bg-zinc-50/50 hover:bg-zinc-50'}`}
             >
               Login
             </button>
             <button 
+              type="button"
               onClick={() => switchAuthTab('SIGNUP')}
               className={`flex-1 py-4 font-semibold transition-all ${authTab === 'SIGNUP' ? 'text-zinc-900' : 'text-zinc-400 bg-zinc-50/50 hover:bg-zinc-50'}`}
             >
@@ -380,7 +382,7 @@ export default function EMartApp() {
             <button onClick={() => setView('PROFILE')} className={`flex items-center gap-2 text-sm font-bold transition-all px-3 py-1.5 rounded-lg ${view === 'PROFILE' ? 'text-zinc-900 bg-zinc-100' : 'text-zinc-400 hover:text-zinc-900'}`}>
               <UserCircle size={16} /> <span className="hidden md:inline">Profile</span>
             </button>
-            <div className="h-4 w-[1px] bg-zinc-200 mx-2 hidden md:block" />
+            <div className="h-4 w-px bg-zinc-200 mx-2 hidden md:block" />
             <button 
               onClick={() => { setCurrentUser(null); setView('LOGIN'); }}
               className="flex items-center gap-2 text-sm font-bold text-red-500 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-all"
@@ -461,11 +463,11 @@ export default function EMartApp() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8">
                   {products.map(product => (
                     <div key={product.id} className="group flex flex-col bg-white border border-zinc-100 rounded-3xl p-5 hover:border-zinc-300 transition-all hover:shadow-xl hover:shadow-zinc-100">
-                      <div className="aspect-[4/3] bg-zinc-50 rounded-2xl mb-5 flex items-center justify-center text-zinc-200 group-hover:scale-[1.02] transition-transform overflow-hidden relative">
+                      <div className="aspect-4/3 bg-zinc-50 rounded-2xl mb-5 flex items-center justify-center text-zinc-200 group-hover:scale-[1.02] transition-transform overflow-hidden relative border border-zinc-50">
                         {product.image ? (
                           <img 
                             src={product.image} 
-                            alt={product.title} 
+                            alt={product.title || 'Product'} 
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               (e.target as HTMLImageElement).src = ""; 
@@ -537,7 +539,7 @@ export default function EMartApp() {
                       </div>
                     ) : (
                       <div className="space-y-6">
-                        <div className="max-h-[300px] overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                        <div className="max-h-75 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
                           {cart.map((item, idx) => (
                             <div key={idx} className="flex justify-between items-center group">
                               <div className="flex-1 min-w-0 pr-4">
@@ -573,7 +575,7 @@ export default function EMartApp() {
 
         {view === 'PROFILE' && (
           <div className="max-w-2xl mx-auto py-12">
-            <h2 className="text-4xl font-black tracking-tighter mb-10 text-center uppercase tracking-widest">ACCOUNT SECURITY</h2>
+            <h2 className="text-4xl font-black tracking-tighter mb-10 text-center uppercase">ACCOUNT SECURITY</h2>
 
             <div className="bg-white border-2 border-zinc-100 rounded-[2.5rem] p-10 shadow-sm mb-10">
               <form onSubmit={handleUpdateProfile} className="space-y-8">
@@ -651,9 +653,8 @@ export default function EMartApp() {
         )}
       </main>
 
-      {/* Custom Delete Modal */}
       {showDeleteModal && !isAdmin && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-zinc-900/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white w-full max-w-md rounded-[2.5rem] p-10 shadow-2xl animate-in zoom-in-95 duration-200">
             <div className="flex flex-col items-center text-center">
               <div className="p-5 bg-red-50 text-red-600 rounded-full mb-6">
