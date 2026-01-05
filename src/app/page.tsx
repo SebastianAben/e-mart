@@ -39,6 +39,7 @@ interface Product {
   description: string;
   category: string;
   image?: string;
+  stock: number;
   userId?: string;
 }
 
@@ -60,6 +61,7 @@ export default function EMartApp() {
   const [authTab, setAuthTab] = useState<'LOGIN' | 'SIGNUP'>('LOGIN');
   const [authForm, setAuthForm] = useState({ fullName: '', email: '', username: '', password: '' });
 
+  // Smart field transfer between Login and Sign Up
   const switchAuthTab = (tab: 'LOGIN' | 'SIGNUP') => {
     if (tab === 'SIGNUP' && authTab === 'LOGIN') {
       const value = authForm.username || '';
@@ -77,7 +79,7 @@ export default function EMartApp() {
   };
 
   const [showPassword, setShowPassword] = useState(false);
-  const [productForm, setProductForm] = useState<Partial<Product>>({ title: '', price: 0, description: '', category: '', image: '' });
+  const [productForm, setProductForm] = useState<Partial<Product>>({ title: '', price: 0, description: '', category: '', image: '', stock: 0 });
   const [editingId, setEditingId] = useState<string | null>(null);
   const [profileForm, setProfileForm] = useState({ fullName: '', email: '', password: '' });
   
@@ -168,7 +170,7 @@ export default function EMartApp() {
       });
       if (res.ok) {
         showToast(editingId ? 'Product updated' : 'Product added');
-        setProductForm({ title: '', price: 0, description: '', category: '', image: '' });
+        setProductForm({ title: '', price: 0, description: '', category: '', image: '', stock: 0 });
         setEditingId(null);
         fetchProducts();
       }
@@ -224,6 +226,37 @@ export default function EMartApp() {
       }
     } catch (err) {
       showToast('Deletion failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCheckout = async () => {
+    if (cart.length === 0) return;
+    setLoading(true);
+    try {
+      const itemCounts = cart.reduce((acc: any, item) => {
+        acc[item.id] = (acc[item.id] || 0) + 1;
+        return acc;
+      }, {});
+
+      const updatePromises = Object.keys(itemCounts).map(async (id) => {
+        const product = products.find(p => p.id === id);
+        if (!product) return;
+        const newStock = Math.max(0, product.stock - itemCounts[id]);
+        return fetch(`${PRODUCT_API}/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...product, stock: newStock, userId: 'admin' }),
+        });
+      });
+
+      await Promise.all(updatePromises);
+      setCart([]);
+      showToast('Order successful! Stock updated.');
+      fetchProducts();
+    } catch (err) {
+      showToast('Transaction failed', 'error');
     } finally {
       setLoading(false);
     }
@@ -427,6 +460,14 @@ export default function EMartApp() {
                     value={productForm.category || ''}
                     onChange={e => setProductForm({...productForm, category: e.target.value})}
                   />
+                  <input 
+                    required
+                    type="number"
+                    placeholder="Stock Qty"
+                    className="w-full px-5 py-3 rounded-2xl border border-zinc-200 bg-white focus:ring-2 focus:ring-zinc-900/5 outline-none transition-all text-zinc-900 font-bold"
+                    value={productForm.stock ?? ''}
+                    onChange={e => setProductForm({...productForm, stock: e.target.value ? Number(e.target.value) : 0})}
+                  />
                   <div className="md:col-span-3">
                     <input 
                       placeholder="Image URL"
@@ -461,64 +502,79 @@ export default function EMartApp() {
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-8">
-                  {products.map(product => (
-                    <div key={product.id} className="group flex flex-col bg-white border border-zinc-100 rounded-3xl p-5 hover:border-zinc-300 transition-all hover:shadow-xl hover:shadow-zinc-100">
-                      <div className="aspect-4/3 bg-zinc-50 rounded-2xl mb-5 flex items-center justify-center text-zinc-200 group-hover:scale-[1.02] transition-transform overflow-hidden relative border border-zinc-50">
-                        {product.image ? (
-                          <img 
-                            src={product.image} 
-                            alt={product.title || 'Product'} 
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLImageElement).src = ""; 
-                              (e.target as HTMLImageElement).style.display = "none";
-                            }}
-                          />
-                        ) : (
-                          <Package size={48} />
-                        )}
-                        <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg shadow-sm border border-zinc-100">
-                          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{product.category}</span>
+                  {products.map(product => {
+                    const isOutOfStock = product.stock <= 0;
+                    return (
+                      <div key={product.id} className="group flex flex-col bg-white border border-zinc-100 rounded-3xl p-5 hover:border-zinc-300 transition-all hover:shadow-xl hover:shadow-zinc-100 relative">
+                        <div className="aspect-4/3 bg-zinc-50 rounded-2xl mb-5 flex items-center justify-center text-zinc-200 group-hover:scale-[1.02] transition-transform overflow-hidden relative border border-zinc-50">
+                          {product.image ? (
+                            <img 
+                              src={product.image} 
+                              alt={product.title || 'Product'} 
+                              className={`w-full h-full object-cover ${isOutOfStock ? 'grayscale opacity-50' : ''}`}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = ""; 
+                                (e.target as HTMLImageElement).style.display = "none";
+                              }}
+                            />
+                          ) : (
+                            <Package size={48} />
+                          )}
+                          <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg shadow-sm border border-zinc-100">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-400">{product.category}</span>
+                          </div>
+                          {isOutOfStock && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
+                              <span className="bg-white text-black text-xs font-black px-4 py-2 rounded-full shadow-xl uppercase">Sold Out</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-bold text-zinc-900 text-lg line-clamp-2 pr-2">{product.title}</h4>
+                            <span className="font-black text-zinc-900 shrink-0">${product.price}</span>
+                          </div>
+                          <div className="flex items-center gap-2 mb-4">
+                            <div className={`size-2 rounded-full ${isOutOfStock ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`} />
+                            <span className={`text-[10px] font-bold uppercase tracking-wider ${isOutOfStock ? 'text-red-500' : 'text-emerald-600'}`}>
+                              {isOutOfStock ? 'No Stock' : `${product.stock} in stock`}
+                            </span>
+                          </div>
+                          <p className="text-zinc-500 text-sm mb-6 line-clamp-3 leading-relaxed">{product.description}</p>
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          {isAdmin ? (
+                            <>
+                              <button 
+                                onClick={() => { setEditingId(product.id); setProductForm(product); }}
+                                className="flex-1 flex items-center justify-center gap-2 py-3 bg-zinc-50 rounded-xl hover:bg-zinc-100 transition-all text-sm font-bold"
+                              >
+                                <Edit2 size={16} /> Edit
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteProduct(product.id)}
+                                className="px-4 py-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          ) : (
+                            <button 
+                              disabled={isOutOfStock}
+                              onClick={() => {
+                                setCart([...cart, product]);
+                                showToast('Added to cart');
+                              }}
+                              className={`w-full flex items-center justify-center gap-3 py-4 rounded-2xl transition-all text-sm font-bold shadow-lg shadow-zinc-200 ${isOutOfStock ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed shadow-none' : 'bg-zinc-900 text-white hover:bg-zinc-800'}`}
+                            >
+                              <ShoppingCart size={18} /> {isOutOfStock ? 'Unavailable' : 'Add to Cart'}
+                            </button>
+                          )}
                         </div>
                       </div>
-                      <div className="flex-1">
-                        <div className="flex justify-between items-start mb-2">
-                          <h4 className="font-bold text-zinc-900 text-lg line-clamp-2 pr-2">{product.title}</h4>
-                          <span className="font-black text-zinc-900 shrink-0">${product.price}</span>
-                        </div>
-                        <p className="text-zinc-500 text-sm mb-6 line-clamp-3 leading-relaxed">{product.description}</p>
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        {isAdmin ? (
-                          <>
-                            <button 
-                              onClick={() => { setEditingId(product.id); setProductForm(product); }}
-                              className="flex-1 flex items-center justify-center gap-2 py-3 bg-zinc-50 rounded-xl hover:bg-zinc-100 transition-all text-sm font-bold"
-                            >
-                              <Edit2 size={16} /> Edit
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteProduct(product.id)}
-                              className="px-4 py-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </>
-                        ) : (
-                          <button 
-                            onClick={() => {
-                              setCart([...cart, product]);
-                              showToast('Added to cart');
-                            }}
-                            className="w-full flex items-center justify-center gap-3 py-4 bg-zinc-900 text-white rounded-2xl hover:bg-zinc-800 transition-all text-sm font-bold shadow-lg shadow-zinc-200"
-                          >
-                            <ShoppingCart size={18} /> Add to Cart
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -560,8 +616,12 @@ export default function EMartApp() {
                             <span className="text-zinc-400 font-bold text-xs uppercase tracking-widest">Total Value</span>
                             <span className="text-3xl font-black tracking-tighter">${cartTotal.toFixed(2)}</span>
                           </div>
-                          <button className="w-full py-5 bg-white text-zinc-900 rounded-2xl font-black hover:bg-zinc-100 transition-all">
-                            CHECKOUT NOW
+                          <button 
+                            disabled={loading || cart.length === 0}
+                            onClick={handleCheckout}
+                            className="w-full py-5 bg-white text-zinc-900 rounded-2xl font-black hover:bg-zinc-100 transition-all disabled:opacity-50"
+                          >
+                            {loading ? 'PROCESSING...' : 'CHECKOUT NOW'}
                           </button>
                         </div>
                       </div>
